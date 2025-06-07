@@ -1,30 +1,32 @@
-# New Project
+# 🛡️ Verificador de Wallets Blockchain (OSINT)
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Aplicación web desarrollada con **Next.js + Tailwind CSS** para realizar análisis OSINT básico sobre direcciones de billeteras (wallets) en la red Ethereum. La herramienta compara la dirección introducida por el usuario con una **base de datos de direcciones denunciadas por actividad sospechosa** o phishing, mantenida por el proyecto [ScamSniffer](https://github.com/scamsniffer/scam-database). Utiliza un algoritmo de comprobaciones por transaccion e intercatuación de contratos y patrones de uso para evaluar la fiabilidad de la dirección.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/registrodanakoes-projects/v0-new-project-pqvrmweqgk0)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/PqvrMWeQgK0)
+---
 
-## Overview
+## 🚀 Funcionalidad - 
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+- 🧾 Permite introducir una dirección de wallet Ethereum (`0x...`).
+- 🔍 Realiza una búsqueda directa en la lista negra actualizada diariamente desde [scamsniffer/scam-database](https://github.com/scamsniffer/scam-database).
+- ❗ Si la dirección está denunciada, muestra una alerta roja que advierte al usuario.
+- ✅ Si no está en la lista, informa que no hay reportes negativos en la base pública.
 
-## Deployment
+---
 
-Your project is live at:
+## 🖥️ Tecnologías usadas
 
-**[https://vercel.com/registrodanakoes-projects/v0-new-project-pqvrmweqgk0](https://vercel.com/registrodanakoes-projects/v0-new-project-pqvrmweqgk0)**
+- [Next.js](https://nextjs.org/)
+- [React](https://reactjs.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [`address.json`](https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/address.json) de ScamSniffer como fuente de datos OSINT
 
-## Build your app
+---
 
-Continue building your app on:
+## 📦 Instalación local
 
-**[https://v0.dev/chat/projects/PqvrMWeQgK0](https://v0.dev/chat/projects/PqvrMWeQgK0)**
+```bash
 
-## How It Works
+cd verificador-wallets-osint
+npm install
+npm run dev
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
