@@ -2,7 +2,7 @@ import type { WalletData } from "@/app/page"
 
 const ETHERSCAN_API_KEY = "BMNRGSSGX4TK28KMG1RQSSE4E1AN8KAA82"
 const ETHERSCAN_BASE_URL = "https://api.etherscan.io/api"
-const SCAM_DATABASE_URL = "https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/all.json"
+const SCAM_DATABASE_URL = "https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/address.json"
 
 interface WalletAnalytics {
   ageInDays: number
@@ -22,6 +22,11 @@ export async function analyzeWallet(
   address: string,
   onProgress: (step: string, progress: number) => void,
 ): Promise<WalletData> {
+  // Validar formato de dirección
+  if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+    throw new Error("Formato de dirección inválido")
+  }
+
   // Step 1: Check Blacklist FIRST (most critical)
   onProgress("🔍 Verificando blacklist de scams...", 5)
   const isBlacklisted = await checkScamDatabase(address, onProgress)
@@ -35,24 +40,24 @@ export async function analyzeWallet(
   onProgress("💰 Obteniendo balance de ETH...", 15)
   const balance = await getEthBalance(address)
 
-  // Step 3: Get Token Balances
-  onProgress("🪙 Analizando tokens...", 25)
-  const tokens = await getTokenBalances(address)
-
-  // Step 4: Get Transactions
-  onProgress("📊 Obteniendo historial de transacciones...", 40)
+  // Step 3: Get Transactions
+  onProgress("📊 Obteniendo historial de transacciones...", 30)
   const transactions = await getTransactions(address)
 
+  // Step 4: Get Token Balances
+  onProgress("🪙 Analizando tokens...", 50)
+  const tokens = await getTokenBalances(address)
+
   // Step 5: Get Contract Interactions
-  onProgress("📋 Analizando contratos...", 55)
+  onProgress("📋 Analizando contratos...", 65)
   const contracts = await getContractInteractions(transactions)
 
   // Step 6: Advanced Analytics
-  onProgress("🔬 Realizando análisis avanzado...", 70)
+  onProgress("🔬 Realizando análisis avanzado...", 80)
   const analytics = await performAdvancedAnalytics(address, transactions, contracts)
 
   // Step 7: Risk Analysis with new algorithm
-  onProgress("⚖️ Calculando puntuación de riesgo...", 85)
+  onProgress("⚖️ Calculando puntuación de riesgo...", 95)
   const riskAnalysis = generateAdvancedRiskAnalysis(
     address,
     balance,
@@ -84,35 +89,76 @@ async function checkScamDatabase(
   onProgress?: (step: string, progress: number) => void,
 ): Promise<boolean> {
   try {
-    onProgress?.("🔍 Consultando base de datos de scams...", 8)
+    onProgress?.("🔍 Consultando base de datos oficial de scams...", 8)
 
-    // Consulta real a la API de GitHub
     const response = await fetch(SCAM_DATABASE_URL, {
+      method: "GET",
       headers: {
         Accept: "application/json",
-        "User-Agent": "Ethereum-OSINT-Analyzer",
+        "User-Agent": "Ethereum-OSINT-Analyzer/1.0",
       },
     })
 
     if (!response.ok) {
-      console.warn("No se pudo acceder a la base de datos de scams, usando verificación local")
+      console.warn(`Error al acceder a la base de datos de scams: ${response.status}`)
       return checkLocalBlacklist(address)
     }
 
     const scamData = await response.json()
     const normalizedAddress = address.toLowerCase()
 
-    // Buscar en diferentes formatos posibles
-    const isInBlacklist =
-      scamData.includes?.(normalizedAddress) ||
-      scamData.includes?.(address) ||
-      scamData.some?.((entry: any) =>
-        typeof entry === "string"
-          ? entry.toLowerCase() === normalizedAddress
-          : entry.address?.toLowerCase() === normalizedAddress,
-      )
+    console.log("Verificando dirección:", normalizedAddress)
+    console.log("Tipo de datos recibidos:", typeof scamData)
 
-    return Boolean(isInBlacklist)
+    let isInBlacklist = false
+
+    if (Array.isArray(scamData)) {
+      isInBlacklist = scamData.some((entry) => {
+        if (typeof entry === "string") {
+          return entry.toLowerCase() === normalizedAddress
+        }
+        if (typeof entry === "object" && entry !== null) {
+          return (
+            entry.address?.toLowerCase() === normalizedAddress ||
+            entry.wallet?.toLowerCase() === normalizedAddress ||
+            entry.contract?.toLowerCase() === normalizedAddress
+          )
+        }
+        return false
+      })
+    } else if (typeof scamData === "object" && scamData !== null) {
+      // Si es un objeto, buscar en todas las propiedades
+      const searchInObject = (obj: any): boolean => {
+        for (const key in obj) {
+          const value = obj[key]
+          if (Array.isArray(value)) {
+            if (
+              value.some((item) =>
+                typeof item === "string"
+                  ? item.toLowerCase() === normalizedAddress
+                  : item?.address?.toLowerCase() === normalizedAddress,
+              )
+            ) {
+              return true
+            }
+          } else if (typeof value === "string") {
+            if (value.toLowerCase() === normalizedAddress) {
+              return true
+            }
+          } else if (typeof value === "object" && value !== null) {
+            if (searchInObject(value)) {
+              return true
+            }
+          }
+        }
+        return false
+      }
+
+      isInBlacklist = searchInObject(scamData)
+    }
+
+    console.log(`Resultado verificación blacklist para ${address}: ${isInBlacklist}`)
+    return isInBlacklist
   } catch (error) {
     console.error("Error checking scam database:", error)
     return checkLocalBlacklist(address)
@@ -128,7 +174,9 @@ function checkLocalBlacklist(address: string): boolean {
     "0x2222222222222222222222222222222222222222",
   ]
 
-  return knownScamAddresses.includes(address.toLowerCase())
+  const isBlacklisted = knownScamAddresses.includes(address.toLowerCase())
+  console.log(`Verificación local blacklist para ${address}: ${isBlacklisted}`)
+  return isBlacklisted
 }
 
 function createBlacklistedWalletResponse(address: string): WalletData {
@@ -162,6 +210,216 @@ function createBlacklistedWalletResponse(address: string): WalletData {
     },
     analyzedAt: new Date(),
   }
+}
+
+async function getEthBalance(address: string): Promise<string> {
+  try {
+    console.log("Obteniendo balance ETH para:", address)
+
+    const url = `${ETHERSCAN_BASE_URL}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
+    console.log("URL balance:", url)
+
+    const response = await fetch(url)
+    const data = await response.json()
+
+    console.log("Respuesta balance ETH:", data)
+
+    if (data.status === "1" && data.result) {
+      const balanceWei = BigInt(data.result)
+      const balanceEth = Number(balanceWei) / Math.pow(10, 18)
+      console.log("Balance calculado:", balanceEth)
+      return balanceEth.toFixed(4)
+    }
+
+    console.log("No se pudo obtener balance, usando 0.0000")
+    return "0.0000"
+  } catch (error) {
+    console.error("Error getting ETH balance:", error)
+    return "0.0000"
+  }
+}
+
+async function getTransactions(address: string) {
+  try {
+    console.log("Obteniendo transacciones para:", address)
+
+    // Obtener transacciones normales
+    const normalTxUrl = `${ETHERSCAN_BASE_URL}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${ETHERSCAN_API_KEY}`
+    console.log("URL transacciones normales:", normalTxUrl)
+
+    const normalResponse = await fetch(normalTxUrl)
+    const normalData = await normalResponse.json()
+
+    console.log("Respuesta transacciones normales:", normalData)
+
+    let allTransactions = []
+
+    if (normalData.status === "1" && normalData.result && Array.isArray(normalData.result)) {
+      allTransactions = normalData.result.map((tx: any) => ({
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to || "Contract Creation",
+        value: (Number(tx.value) / Math.pow(10, 18)).toFixed(6),
+        timeStamp: tx.timeStamp,
+        gasUsed: tx.gasUsed,
+        gasPrice: tx.gasPrice,
+        blockNumber: tx.blockNumber,
+        isError: tx.isError,
+        type: "normal",
+      }))
+    }
+
+    // Obtener transacciones internas si hay pocas transacciones normales
+    if (allTransactions.length < 10) {
+      try {
+        const internalTxUrl = `${ETHERSCAN_BASE_URL}?module=account&action=txlistinternal&address=${address}&startblock=0&endblock=99999999&page=1&offset=25&sort=desc&apikey=${ETHERSCAN_API_KEY}`
+        console.log("URL transacciones internas:", internalTxUrl)
+
+        const internalResponse = await fetch(internalTxUrl)
+        const internalData = await internalResponse.json()
+
+        console.log("Respuesta transacciones internas:", internalData)
+
+        if (internalData.status === "1" && internalData.result && Array.isArray(internalData.result)) {
+          const internalTxs = internalData.result.map((tx: any) => ({
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to,
+            value: (Number(tx.value) / Math.pow(10, 18)).toFixed(6),
+            timeStamp: tx.timeStamp,
+            gasUsed: "0",
+            gasPrice: "0",
+            blockNumber: tx.blockNumber,
+            isError: tx.isError,
+            type: "internal",
+          }))
+
+          allTransactions = [...allTransactions, ...internalTxs]
+        }
+      } catch (error) {
+        console.error("Error obteniendo transacciones internas:", error)
+      }
+    }
+
+    // Ordenar por timestamp descendente y eliminar duplicados
+    const uniqueTransactions = allTransactions
+      .filter((tx, index, self) => index === self.findIndex((t) => t.hash === tx.hash))
+      .sort((a, b) => Number(b.timeStamp) - Number(a.timeStamp))
+      .slice(0, 50)
+
+    console.log(`Total transacciones encontradas: ${uniqueTransactions.length}`)
+    return uniqueTransactions
+  } catch (error) {
+    console.error("Error getting transactions:", error)
+    return []
+  }
+}
+
+async function getTokenBalances(address: string) {
+  try {
+    console.log("Obteniendo tokens para:", address)
+
+    // Primero obtener transacciones de tokens para identificar qué tokens tiene
+    const tokenTxUrl = `${ETHERSCAN_BASE_URL}?module=account&action=tokentx&address=${address}&startblock=0&endblock=999999999&page=1&offset=100&sort=desc&apikey=${ETHERSCAN_API_KEY}`
+    console.log("URL token transactions:", tokenTxUrl)
+
+    const response = await fetch(tokenTxUrl)
+    const data = await response.json()
+
+    console.log("Respuesta token transactions:", data)
+
+    if (data.status === "1" && data.result && Array.isArray(data.result)) {
+      const tokenMap = new Map()
+
+      // Identificar tokens únicos
+      data.result.forEach((tx: any) => {
+        const contractAddress = tx.contractAddress
+        if (contractAddress && !tokenMap.has(contractAddress)) {
+          tokenMap.set(contractAddress, {
+            name: tx.tokenName || "Unknown Token",
+            symbol: tx.tokenSymbol || "???",
+            contractAddress: contractAddress,
+            decimals: tx.tokenDecimal || "18",
+          })
+        }
+      })
+
+      console.log(`Tokens únicos encontrados: ${tokenMap.size}`)
+
+      // Obtener saldos reales para cada token (máximo 20 para no sobrecargar)
+      const tokensToCheck = Array.from(tokenMap.values()).slice(0, 20)
+      const tokensWithBalances = await Promise.all(
+        tokensToCheck.map(async (token) => {
+          try {
+            const balanceUrl = `${ETHERSCAN_BASE_URL}?module=account&action=tokenbalance&contractaddress=${token.contractAddress}&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
+
+            const balanceResponse = await fetch(balanceUrl)
+            const balanceData = await balanceResponse.json()
+
+            if (balanceData.status === "1" && balanceData.result) {
+              const balance = BigInt(balanceData.result)
+              const decimals = Number.parseInt(token.decimals)
+              const formattedBalance = (Number(balance) / Math.pow(10, decimals)).toFixed(6)
+
+              return {
+                ...token,
+                balance: formattedBalance,
+                value: "0.00", // Aquí podrías integrar una API de precios
+                rawBalance: balanceData.result,
+              }
+            }
+            return { ...token, balance: "0", value: "0.00", rawBalance: "0" }
+          } catch (error) {
+            console.error(`Error getting balance for token ${token.contractAddress}:`, error)
+            return { ...token, balance: "0", value: "0.00", rawBalance: "0" }
+          }
+        }),
+      )
+
+      // Filtrar tokens con saldo mayor a 0
+      const tokensWithPositiveBalance = tokensWithBalances.filter((token) => {
+        const balance = Number.parseFloat(token.balance)
+        return balance > 0
+      })
+
+      console.log(`Tokens con saldo positivo: ${tokensWithPositiveBalance.length}`)
+      return tokensWithPositiveBalance
+    }
+
+    console.log("No se encontraron transacciones de tokens")
+    return []
+  } catch (error) {
+    console.error("Error getting token balances:", error)
+    return []
+  }
+}
+
+async function getContractInteractions(transactions: any[]) {
+  const contractMap = new Map()
+
+  transactions.forEach((tx) => {
+    if (tx.to && tx.to !== tx.from && tx.to !== "Contract Creation") {
+      // Verificar si es una dirección de contrato (heurística simple)
+      const key = tx.to.toLowerCase()
+      if (contractMap.has(key)) {
+        contractMap.get(key).interactionCount++
+      } else {
+        contractMap.set(key, {
+          address: tx.to,
+          name: undefined,
+          interactionCount: 1,
+          lastInteraction: tx.timeStamp,
+        })
+      }
+    }
+  })
+
+  const contracts = Array.from(contractMap.values())
+    .sort((a, b) => b.interactionCount - a.interactionCount)
+    .slice(0, 20)
+
+  console.log(`Contratos únicos encontrados: ${contracts.length}`)
+  return contracts
 }
 
 async function performAdvancedAnalytics(
@@ -201,6 +459,13 @@ async function performAdvancedAnalytics(
   // Calcular nivel de confianza
   const confidenceLevel = calculateConfidenceLevel(transactions.length, ageInDays)
 
+  console.log("Analytics calculados:", {
+    ageInDays,
+    transactionCount: transactions.length,
+    riskScore,
+    confidenceLevel,
+  })
+
   return {
     ageInDays,
     transactionFrequency,
@@ -239,25 +504,29 @@ function calculateTransactionFrequency(transactions: any[]) {
 
 function detectExchangeInteractions(transactions: any[], contracts: any[]) {
   const knownExchanges = [
-    "0x7a250d5630b4cf539739df2c5dacb4c659f2488d", // Uniswap V2
-    "0xe592427a0aece92de3edee1f18e0157c05861564", // Uniswap V3
+    "0x7a250d5630b4cf539739df2c5dacb4c659f2488d", // Uniswap V2 Router
+    "0xe592427a0aece92de3edee1f18e0157c05861564", // Uniswap V3 Router
     "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45", // Uniswap Universal Router
-    "0x1111111254fb6c44bac0bed2854e76f90643097d", // 1inch
+    "0x1111111254fb6c44bac0bed2854e76f90643097d", // 1inch V4 Router
     "0xdef1c0ded9bec7f1a1670819833240f027b25eff", // 0x Protocol
-    "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad", // Uniswap Universal Router
+    "0xa0b86a33e6441e8c8c7014b37c88df5c5c4b2a5c", // Binance Hot Wallet
+    "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad", // Uniswap Universal Router 2
   ]
 
   const interactions: string[] = []
 
   transactions.forEach((tx) => {
-    if (knownExchanges.includes(tx.to?.toLowerCase())) {
-      interactions.push("Uniswap/DEX")
-    }
-  })
-
-  contracts.forEach((contract) => {
-    if (knownExchanges.includes(contract.address?.toLowerCase())) {
-      interactions.push("DEX Contract")
+    const toAddress = tx.to?.toLowerCase()
+    if (toAddress && knownExchanges.includes(toAddress)) {
+      if (toAddress.includes("7a250d5630b4cf539739df2c5dacb4c659f2488d")) {
+        interactions.push("Uniswap V2")
+      } else if (toAddress.includes("e592427a0aece92de3edee1f18e0157c05861564")) {
+        interactions.push("Uniswap V3")
+      } else if (toAddress.includes("1111111254fb6c44bac0bed2854e76f90643097d")) {
+        interactions.push("1inch")
+      } else {
+        interactions.push("DEX/Exchange")
+      }
     }
   })
 
@@ -283,10 +552,16 @@ function detectSuspiciousPatterns(transactions: any[], contracts: any[], ageInDa
   }
 
   // Patrones de transacciones repetitivas
-  const amounts = transactions.map((tx) => tx.value)
+  const amounts = transactions.map((tx) => tx.value).filter((value) => Number.parseFloat(value) > 0)
   const uniqueAmounts = new Set(amounts)
   if (amounts.length > 10 && uniqueAmounts.size < amounts.length * 0.3) {
     patterns.push("Patrones de transacciones repetitivas")
+  }
+
+  // Muchas transacciones fallidas
+  const failedTxs = transactions.filter((tx) => tx.isError === "1").length
+  if (failedTxs > transactions.length * 0.2 && failedTxs > 5) {
+    patterns.push("Alto porcentaje de transacciones fallidas")
   }
 
   return patterns
@@ -424,102 +699,4 @@ function generateAdvancedRiskAnalysis(
     recommendation,
     analytics,
   }
-}
-
-// Mantener las funciones existentes para obtener datos de Etherscan
-async function getEthBalance(address: string): Promise<string> {
-  try {
-    const response = await fetch(
-      `${ETHERSCAN_BASE_URL}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`,
-    )
-    const data = await response.json()
-
-    if (data.status === "1") {
-      const balanceWei = BigInt(data.result)
-      const balanceEth = Number(balanceWei) / Math.pow(10, 18)
-      return balanceEth.toFixed(4)
-    }
-    return "0.0000"
-  } catch (error) {
-    console.error("Error getting ETH balance:", error)
-    return "0.0000"
-  }
-}
-
-async function getTokenBalances(address: string) {
-  try {
-    const response = await fetch(
-      `${ETHERSCAN_BASE_URL}?module=account&action=tokentx&address=${address}&startblock=0&endblock=999999999&sort=desc&apikey=${ETHERSCAN_API_KEY}`,
-    )
-    const data = await response.json()
-
-    if (data.status === "1" && data.result) {
-      const tokenMap = new Map()
-
-      data.result.slice(0, 50).forEach((tx: any) => {
-        const key = tx.contractAddress
-        if (!tokenMap.has(key)) {
-          tokenMap.set(key, {
-            name: tx.tokenName || "Unknown Token",
-            symbol: tx.tokenSymbol || "???",
-            balance: "0",
-            value: "0.00",
-            contractAddress: tx.contractAddress,
-          })
-        }
-      })
-
-      return Array.from(tokenMap.values()).slice(0, 20)
-    }
-    return []
-  } catch (error) {
-    console.error("Error getting token balances:", error)
-    return []
-  }
-}
-
-async function getTransactions(address: string) {
-  try {
-    const response = await fetch(
-      `${ETHERSCAN_BASE_URL}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=100&sort=desc&apikey=${ETHERSCAN_API_KEY}`,
-    )
-    const data = await response.json()
-
-    if (data.status === "1" && data.result) {
-      return data.result.map((tx: any) => ({
-        hash: tx.hash,
-        from: tx.from,
-        to: tx.to,
-        value: (Number(tx.value) / Math.pow(10, 18)).toFixed(4),
-        timeStamp: tx.timeStamp,
-        gasUsed: tx.gasUsed,
-        gasPrice: tx.gasPrice,
-      }))
-    }
-    return []
-  } catch (error) {
-    console.error("Error getting transactions:", error)
-    return []
-  }
-}
-
-async function getContractInteractions(transactions: any[]) {
-  const contractMap = new Map()
-
-  transactions.forEach((tx) => {
-    if (tx.to && tx.to !== tx.from) {
-      const key = tx.to
-      if (contractMap.has(key)) {
-        contractMap.get(key).interactionCount++
-      } else {
-        contractMap.set(key, {
-          address: tx.to,
-          name: undefined,
-          interactionCount: 1,
-        })
-      }
-    }
-  })
-
-  return Array.from(contractMap.values()).slice(0, 15)
 }

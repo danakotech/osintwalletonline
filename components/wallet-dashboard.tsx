@@ -27,23 +27,23 @@ export function WalletDashboard({ wallet }: WalletDashboardProps) {
   const getRiskColor = (level: string) => {
     switch (level) {
       case "LOW":
-        return "bg-green-500/20 text-green-200 border-green-500/30"
+        return "bg-slate-500/20 text-slate-200 border-slate-500/30"
       case "MEDIUM":
-        return "bg-yellow-500/20 text-yellow-200 border-yellow-500/30"
+        return "bg-slate-400/20 text-slate-200 border-slate-400/30"
       case "HIGH":
-        return "bg-orange-500/20 text-orange-200 border-orange-500/30"
+        return "bg-slate-600/20 text-slate-200 border-slate-600/30"
       case "EXTREME":
-        return "bg-red-500/20 text-red-200 border-red-500/30"
+        return "bg-slate-800/20 text-slate-200 border-slate-800/30"
       default:
-        return "bg-gray-500/20 text-gray-200 border-gray-500/30"
+        return "bg-slate-500/20 text-slate-200 border-slate-500/30"
     }
   }
 
   const getRiskScoreColor = (score: number) => {
-    if (score >= 8) return "text-green-400"
-    if (score >= 6) return "text-yellow-400"
-    if (score >= 4) return "text-orange-400"
-    return "text-red-400"
+    if (score >= 8) return "text-slate-300"
+    if (score >= 6) return "text-slate-400"
+    if (score >= 4) return "text-slate-500"
+    return "text-slate-600"
   }
 
   const analytics = wallet.riskAnalysis.analytics
@@ -52,12 +52,12 @@ export function WalletDashboard({ wallet }: WalletDashboardProps) {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Critical Risk Alert */}
       {wallet.riskAnalysis.isBlacklisted && (
-        <Alert className="bg-red-500/30 border-red-500/70 border-2">
-          <AlertTriangle className="h-6 w-6 text-red-300" />
-          <AlertDescription className="text-red-100 text-lg font-bold">
+        <Alert className="bg-slate-700/30 border-slate-700/70 border-2">
+          <AlertTriangle className="h-6 w-6 text-slate-300" />
+          <AlertDescription className="text-slate-100 text-lg font-bold">
             🚨 ALERTA CRÍTICA - DIRECCIÓN PELIGROSA CONFIRMADA 🚨
             <br />
-            <span className="text-red-200 text-base font-normal">
+            <span className="text-slate-200 text-base font-normal">
               Esta wallet está verificada en la blacklist oficial de scams. El riesgo de operar con esta dirección es
               extremadamente elevado y completamente desaconsejable. NO INTERACTUAR BAJO NINGUNA CIRCUNSTANCIA.
             </span>

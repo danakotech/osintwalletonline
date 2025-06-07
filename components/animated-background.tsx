@@ -18,14 +18,14 @@ export function AnimatedBackground() {
       className="fixed inset-0 transition-all duration-1000 ease-in-out"
       style={{
         background: `linear-gradient(${gradientPosition}deg, 
-          #667eea 0%, 
-          #764ba2 25%, 
-          #f093fb 50%, 
-          #f5576c 75%, 
-          #4facfe 100%)`,
+          #f8fafc 0%, 
+          #e2e8f0 25%, 
+          #cbd5e1 50%, 
+          #94a3b8 75%, 
+          #64748b 100%)`,
       }}
     >
-      <div className="absolute inset-0 bg-black/20" />
+      <div className="absolute inset-0 bg-black/10" />
       <div className="absolute inset-0 backdrop-blur-sm" />
     </div>
   )

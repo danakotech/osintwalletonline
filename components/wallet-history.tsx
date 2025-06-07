@@ -14,15 +14,15 @@ export function WalletHistory({ wallets }: WalletHistoryProps) {
   const getRiskColor = (level: string) => {
     switch (level) {
       case "LOW":
-        return "bg-green-500/20 text-green-200 border-green-500/30"
+        return "bg-slate-500/20 text-slate-200 border-slate-500/30"
       case "MEDIUM":
-        return "bg-yellow-500/20 text-yellow-200 border-yellow-500/30"
+        return "bg-slate-400/20 text-slate-200 border-slate-400/30"
       case "HIGH":
-        return "bg-orange-500/20 text-orange-200 border-orange-500/30"
+        return "bg-slate-600/20 text-slate-200 border-slate-600/30"
       case "EXTREME":
-        return "bg-red-500/20 text-red-200 border-red-500/30"
+        return "bg-slate-800/20 text-slate-200 border-slate-800/30"
       default:
-        return "bg-gray-500/20 text-gray-200 border-gray-500/30"
+        return "bg-slate-500/20 text-slate-200 border-slate-500/30"
     }
   }
 

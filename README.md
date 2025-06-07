@@ -24,9 +24,8 @@ Aplicación web desarrollada con **Next.js + Tailwind CSS** para realizar análi
 
 ## 📦 Instalación local
 
-```bash
+\`\`\`bash
 
 cd verificador-wallets-osint
 npm install
 npm run dev
-
